@@ -10,16 +10,18 @@ temp1: .res 2
 temp2: .res 2
 temp3: .res 2
 temp4: .res 2
+temp5: .res 2
+temp6: .res 2
+
+; for sprite code
 sprid: .res 1
-spr_x: .res 1 ; for sprite setting code
-spr_y: .res 1
-spr_c: .res 1
-spr_a: .res 1
+spr_x: .res 2 ; 9 bit
+spr_y: .res 1 
+spr_c: .res 1 ; tile #
+spr_a: .res 1 ; attributes
+spr_sz:	.res 1 ; sprite size, 0 or 2
 spr_h: .res 1 ; high 2 bits
 spr_x2:	.res 2 ; for meta sprite code
-spr_y2: .res 1
-spr_h2:	.res 1
-spr_pri: .res 1 ; priority
 
 pad1: .res 2
 pad1_new: .res 2
@@ -118,7 +120,7 @@ main:
 	lda #$60 ; bg1 map at VRAM address $6000
 	sta tilemap1 ; $2107
 	
-	lda #$68 ; bg1 map at VRAM address $6800
+	lda #$68 ; bg2 map at VRAM address $6800
 	sta tilemap2 ; $2108
 	
 	lda #$70 ; bg3 map at VRAM address $7000
@@ -203,11 +205,11 @@ Draw_sprites:
 	php
 	A8
 	
-; spr_x - x
+; spr_x - x (9 bit)
 ; spr_y - y
 ; spr_c - tile #
 ; spr_a - attributes, flip, palette, priority
-; spr_h - sprite size and 9th X bit
+; spr_sz = sprite size, 0 or 2
 	lda #10
 	sta spr_x
 	sta spr_y 
@@ -217,10 +219,11 @@ Draw_sprites:
 	lda #SPR_PAL_0|SPR_PRIOR_2
 	sta spr_a
 	lda #SPR_SIZE_LG
-	sta spr_h ;16x16 
+	sta spr_sz ;16x16 
 	jsr oam_spr
 	plp
 	rts
+	
 	
 Button_Handler:
 .a16

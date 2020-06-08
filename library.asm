@@ -10,33 +10,33 @@ oam_spr:
 .i16
 ; to put one sprite on screen
 ; copy all the sprite values to these 8 bit variables
-; spr_x - x
+; spr_x - x (9 bit)
 ; spr_y - y
 ; spr_c - tile #
 ; spr_a - attributes, flip, palette, priority
-; spr_h - 0-3, optional, keep zero if not needed
-;  bit 0 = X high bit (neg)
-;  bit 1 = sprite size
+; spr_sz = sprite size, 0 or 2
+
 	php
-	sep #$20
-	lda sprid ; 0-127
-	lsr a
-	lsr a
-	sta temp1 ; 0-31
+	rep #$30 ;axy16
 	lda sprid
-	rep #$30
 	and #$007f
+	tax
 	asl a
 	asl a ; 0-511
 	tay
-	sep #$20
-	lda spr_x
+	
+	txa
+	sep #$20 ;a8
+	lsr a
+	lsr a ; 0-31
+	tax
+	lda spr_x ;x low byte
 	sta a:oam_buffer, y
-	lda spr_y
+	lda spr_y ;y
 	sta a:oam_buffer+1, y
-	lda spr_c
+	lda spr_c ;tile
 	sta a:oam_buffer+2, y
-	lda spr_a
+	lda spr_a ;attribute
 	sta a:oam_buffer+3, y
 	
 ; handle the high table
@@ -44,72 +44,55 @@ oam_spr:
 ; this is slow, so if this is zero, skip it, it was
 ; zeroed in oam_clear
 
-	lda spr_h ; if zero, skip
+	lda spr_x+1 ;9th x bit
+	and #1 ;we only need 1 bit
+	ora spr_sz ;size
 	beq @end
-	and #3 ; to be safe, we only need 2 bits
 	sta spr_h
-	
-	lda #0
-	xba ; clear that H byte, a is 8 bit
-	lda temp1 ; sprid >> 2
-	tay ; should be 0-31
 	
 	lda sprid
 	and #3
 	beq @zero
-	cmp #1
+	dec a
 	beq @one
-	cmp #2
+	dec a
 	beq @two
 	bne @three
+	
 @zero:
-	lda a:oam_buffer+$200, y
-	and #$fc
-	sta temp1
 	lda spr_h
-	ora temp1
-	sta a:oam_buffer+$200, y
+	sta a:oam_buffer+$200, x
 	bra @end
 	
 @one:
-	lda a:oam_buffer+$200, y
-	and #$f3
-	sta temp1
 	lda spr_h
 	asl a
 	asl a
-	ora temp1
-	sta oam_buffer+$200, y
+	ora a:oam_buffer+$200, x
+	sta a:oam_buffer+$200, x
 	bra @end
 	
 @two:
-	lda a:oam_buffer+$200, y
-	and #$cf
-	sta temp1
 	lda spr_h
 	asl a
 	asl a
 	asl a
 	asl a
-	ora temp1
-	sta a:oam_buffer+$200, y	
+	ora a:oam_buffer+$200, x
+	sta a:oam_buffer+$200, x
 	bra @end
 
 @three:
-	lda a:oam_buffer+$200, y
-	and #$3f
-	sta temp1
 	lda spr_h
 	lsr a ; 0000 0001 c
 	ror a ; 1000 0000 c
 	ror a ; 1100 0000 0
-	ora temp1
-	sta a:oam_buffer+$200, y	
+	ora a:oam_buffer+$200, x
+	sta a:oam_buffer+$200, x	
 	
 @end:	
 	lda sprid
-	clc
-	adc #1
+	inc a
 	and #$7f ; keep it 0-127
 	sta sprid
 	plp
