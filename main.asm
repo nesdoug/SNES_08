@@ -4,47 +4,8 @@
 .smart
 
 
-.segment "ZEROPAGE"
-
-temp1: .res 2
-temp2: .res 2
-temp3: .res 2
-temp4: .res 2
-temp5: .res 2
-temp6: .res 2
-
-; for sprite code
-sprid: .res 1
-spr_x: .res 2 ; 9 bit
-spr_y: .res 1 
-spr_c: .res 1 ; tile #
-spr_a: .res 1 ; attributes
-spr_sz:	.res 1 ; sprite size, 0 or 2
-spr_h: .res 1 ; high 2 bits
-spr_x2:	.res 2 ; for meta sprite code
-
-pad1: .res 2
-pad1_new: .res 2
-pad2: .res 2
-pad2_new: .res 2
-in_nmi: .res 2
-
-bg1_x: .res 1
-bg1_y: .res 1
-bg2_x: .res 1
-bg2_y: .res 1
-bg3_x: .res 1
-bg3_y: .res 1
-map_selected: .res 1
-
-
-.segment "BSS"
-
-OAM_BUFFER: .res 512 ;low table
-OAM_BUFFER2: .res 32 ;high table
-
-
-.include "defines.asm"
+.include "regs.asm"
+.include "variables.asm"
 .include "macros.asm"
 .include "init.asm"
 .include "library.asm"
@@ -55,34 +16,26 @@ OAM_BUFFER2: .res 32 ;high table
 .segment "CODE"
 
 ; enters here in forced blank
-main:
-.a16 ; just a standardized setting from init code
+Main:
+.a16 ; the setting from init code
 .i16
 	phk
 	plb
 	
 
 	
-; DMA from BG_Palette to CGRAM
-	A8
-	stz $2121 ; $2121 cg address = zero
+; COPY PALETTES to PAL_BUFFER	
+;	BLOCK_MOVE  length, src_addr, dst_addr
+	BLOCK_MOVE  512, BG_Palette, PAL_BUFFER
+	A8 ;block move will put AXY16. Undo that.
 	
-	stz $4300 ; transfer mode 0 = 1 register write once
-	lda #$22  ; $2122
-	sta $4301 ; destination, pal data
-	ldx #.loword(BG_Palette)
-	stx $4302 ; source
-	lda #^BG_Palette
-	sta $4304 ; bank
-	ldx #512
-	stx $4305 ; length
-	lda #1
-	sta $420b ; start dma, channel 0
+; DMA from PAL_BUFFER to CGRAM
+	jsr DMA_Palette ; in init.asm
 	
 	
 ; DMA from Tiles to VRAM	
 	lda #V_INC_1 ; the value $80
-	sta vram_inc  ; $2115 = set the increment mode +1
+	sta VMAIN  ; $2115 = set the increment mode +1
 
 	DMA_VRAM  (End_Tiles-Tiles), Tiles, $0000
 
@@ -105,51 +58,51 @@ main:
 	
 ; a is still 8 bit.
 	lda #1|BG3_TOP ; mode 1, tilesize 8x8 all, layer 3 on top
-	sta bg_size_mode ; $2105
+	sta BGMODE ; $2105
 	
 ; 210b = tilesets for bg 1 and bg 2
 ; (210c for bg 3 and bg 4)
 ; steps of $1000 -321-321... bg2 bg1
-	stz bg12_tiles ; $210b BG 1 and 2 TILES at VRAM address $0000
+	stz BG12NBA ; $210b BG 1 and 2 TILES at VRAM address $0000
 	lda #$03
-	sta bg34_tiles ; $210c BG3 TILES at VRAM address $3000
+	sta BG34NBA ; $210c BG3 TILES at VRAM address $3000
 	
 	; 2107 map address bg 1, steps of $400... -54321yx
 	; y/x = map size... 0,0 = 32x32 tiles
 	; $6000 / $100 = $60
 	lda #$60 ; bg1 map at VRAM address $6000
-	sta tilemap1 ; $2107
+	sta BG1SC ; $2107
 	
 	lda #$68 ; bg2 map at VRAM address $6800
-	sta tilemap2 ; $2108
+	sta BG2SC ; $2108
 	
 	lda #$70 ; bg3 map at VRAM address $7000
-	sta tilemap3 ; $2109
+	sta BG3SC ; $2109
 	
 	lda #2 ;sprite tiles at $4000
-	sta spr_addr_size ;= $2101
+	sta OBSEL ;= $2101
 
 	;allow everything on the main screen	
 	lda #ALL_ON_SCREEN ; $1f
-	sta main_screen ; $212c
+	sta TM ; $212c
 	
 	;turn on NMI interrupts and auto-controller reads
 	lda #NMI_ON|AUTO_JOY_ON
-	sta $4200
+	sta NMITIMEN ;$4200
 	
-	jsr oam_clear
+;	jsr Clear_OAM ;done in init
 	
 	lda #FULL_BRIGHT ; $0f = turn the screen on, full brighness
-	sta fb_bright ; $2100
+	sta INIDISP ; $2100
 
 
-InfiniteLoop:	
+Infinite_Loop:	
 	A8
-	jsr wait_nmi ;wait for the beginning of v-blank
-	jsr dma_oam  ;copy the OAM_BUFFER to the OAM
-	jsr set_scroll
-	jsr pad_poll ;read controllers
-	jsr oam_clear
+	jsr Wait_NMI ;wait for the beginning of v-blank
+	jsr DMA_OAM  ;copy the OAM_BUFFER to the OAM
+	jsr Set_Scroll
+	jsr Pad_Poll ;read controllers
+	jsr Clear_OAM
 
 	AXY16
 	
@@ -194,17 +147,17 @@ InfiniteLoop:
 @not_button:
 
 
-	jsr Draw_sprites
-	jmp InfiniteLoop
+	jsr Draw_Sprites
+	jmp Infinite_Loop
 	
 	
 	
 	
 	
-Draw_sprites:
+Draw_Sprites:
 	php
 	A8
-	
+	stz sprid
 ; spr_x - x (9 bit)
 ; spr_y - y
 ; spr_c - tile #
@@ -220,7 +173,7 @@ Draw_sprites:
 	sta spr_a
 	lda #SPR_SIZE_LG
 	sta spr_sz ;16x16 
-	jsr oam_spr
+	jsr OAM_Spr
 	plp
 	rts
 	
@@ -342,7 +295,7 @@ Up_Handler:
 	
 	
 	
-set_scroll:
+Set_Scroll:
 .a8
 .i16
 	php
@@ -351,30 +304,30 @@ set_scroll:
 ;the high bytes are always 0 in this demo	
 ;because our map is 256x256 always (32x32 map and 8x8 tiles)
 	lda bg1_x
-	sta bg1_scroll_x ;$210d 
-	stz bg1_scroll_x
+	sta BG1HOFS ;$210d 
+	stz BG1HOFS
 	lda bg1_y
-	sta bg1_scroll_y ;$210e
-	stz bg1_scroll_y
+	sta BG1VOFS ;$210e
+	stz BG1VOFS
 	
 	lda bg2_x
-	sta bg2_scroll_x ;$210f
-	stz bg2_scroll_x
+	sta BG2HOFS ;$210f
+	stz BG2HOFS
 	lda bg2_y
-	sta bg2_scroll_y ;$2110
-	stz bg2_scroll_y
+	sta BG2VOFS ;$2110
+	stz BG2VOFS
 	
 	lda bg3_x
-	sta bg3_scroll_x ;$2111
-	stz bg3_scroll_x
+	sta BG3HOFS ;$2111
+	stz BG3HOFS
 	lda bg3_y
-	sta bg3_scroll_y ;$2112
-	stz bg3_scroll_y
+	sta BG3VOFS ;$2112
+	stz BG3VOFS
 	plp
 	rts
 
 
-wait_nmi:
+Wait_NMI:
 .a8
 .i16
 ;should work fine regardless of size of A
@@ -388,31 +341,10 @@ wait_nmi:
 	rts
 	
 	
-dma_oam:
-.a8
-.i16
-	php
-	A8
-	XY16
-	ldx #$0000
-	stx oam_addr_L ;$2102 (and 2103)
-	
-	stz $4300 ; transfer mode 0 = 1 register write once
-	lda #4 ;$2104 oam data
-	sta $4301 ; destination, oam data
-	ldx #.loword(OAM_BUFFER)
-	stx $4302 ; source
-	lda #^OAM_BUFFER
-	sta $4304 ; bank
-	ldx #544
-	stx $4305 ; length
-	lda #1
-	sta $420b ; start dma, channel 0
-	plp
-	rts
+
 
 	
-pad_poll:
+Pad_Poll:
 .a8
 .i16
 ; reads both controllers to pad1, pad1_new, pad2, pad2_new
@@ -456,6 +388,8 @@ pad_poll:
 BG_Palette:
 ; 256 bytes
 .incbin "ImageConverter/allBG.pal"
+Spr_Palette:
+; 256 bytes
 .incbin "Sprites/Sprites.pal"
 
 Tiles:

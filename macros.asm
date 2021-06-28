@@ -64,7 +64,7 @@
 ;dst is address in the VRAM
 ;a should be 8 bit, xy should be 16 bit
 	ldx #dst_addr
-	stx vram_addr
+	stx $2116 ; vram address
 	
 	lda #1
 	sta $4300 ; transfer mode, 2 registers 1 write
@@ -80,3 +80,4 @@
 	lda #1
 	sta $420b ; start dma, channel 0
 .endmacro
+
