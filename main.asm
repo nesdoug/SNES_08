@@ -387,32 +387,32 @@ Pad_Poll:
 
 BG_Palette:
 ; 256 bytes
-.incbin "ImageConverter/allBG.pal"
+.incbin "M1TE/allBG.pal"
 Spr_Palette:
 ; 256 bytes
 .incbin "Sprites/Sprites.pal"
 
 Tiles:
 ; 4bpp tileset
-.incbin "ImageConverter/moon.chr"
+.incbin "M1TE/moon.chr"
 End_Tiles:
 
 Tiles2:
 ; 2bpp tileset
-.incbin "ImageConverter/spacebar.chr"
+.incbin "M1TE/spacebar.chr"
 End_Tiles2:
 
 Tilemap:
 ; $700 bytes
-.incbin "ImageConverter/moon3.map"
+.incbin "M1TE/moon.map"
 
 Tilemap2:
 ; $700 bytes
-.incbin "ImageConverter/bluebar.map"
+.incbin "M1TE/bluebar.map"
 
 Tilemap3:
 ; $700 bytes
-.incbin "ImageConverter/spacebar2.map"
+.incbin "M1TE/spacebar.map"
 
 SpTiles: ;768 bytes
 .incbin "Sprites/Numbers.chr"
